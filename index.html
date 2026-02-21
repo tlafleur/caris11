@@ -638,11 +638,12 @@ const CONFETTI=Array.from({length:40}).map((_,i)=>({suit:ALL_SUITS[i%4],value:(i
 function BirthdayScene({heroImg,onReplay}){
   const [show,setShow]=useState(false);const [showMsg,setShowMsg]=useState(false);
   useEffect(()=>{sfx.stopMusic();setTimeout(()=>{setShow(true);sfx.birthday();},600);setTimeout(()=>setShowMsg(true),2800);},[]);
-  return <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,position:"relative",overflow:"hidden"}}>
+  return <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",padding:"24px 24px 40px",position:"relative",overflow:"auto",WebkitOverflowScrolling:"touch"}}>
     <div style={{position:"absolute",inset:0,backgroundImage:`url(${heroImg})`,backgroundSize:"cover",backgroundPosition:"center 20%",filter:"brightness(0.18) saturate(0.5) blur(6px)"}}/>
     <div style={{position:"absolute",inset:0,background:`${P.bg}a0`}}/>
     {CONFETTI.map((c,i)=><div key={i} style={{position:"absolute",left:c.left,top:-120,animation:`floatDown ${c.dur}s linear ${c.delay}s infinite`,opacity:0,transform:`rotate(${c.rot}deg)`,pointerEvents:"none",zIndex:0}}><GameCard suit={c.suit} value={c.value} small={c.sm} style={{opacity:0.22}}/></div>)}
     {Array.from({length:30}).map((_,i)=><div key={`s${i}`} style={{position:"absolute",left:`${Math.random()*100}%`,top:`${Math.random()*100}%`,width:Math.random()>0.5?2:1,height:Math.random()>0.5?2:1,background:P.cream,borderRadius:"50%",animation:`twinkle ${1+Math.random()*2}s ease-in-out ${Math.random()*3}s infinite`,pointerEvents:"none"}}/>)}
+    <div style={{flex:"1 0 20px"}}/>
     <div style={{opacity:show?1:0,transform:show?"translateY(0)":"translateY(30px)",transition:"all 1.5s ease",textAlign:"center",zIndex:1}}>
       <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:P.amber,letterSpacing:5,marginBottom:12,opacity:0.7}}>✦ TRANSMISSION DECODED ✦</div>
       <h1 style={{fontFamily:"'Teko',sans-serif",fontSize:44,fontWeight:700,color:P.cream,margin:"0",letterSpacing:3,lineHeight:1.1}}>HAPPY BIRTHDAY</h1>

@@ -505,6 +505,7 @@ function GyroScene({onComplete}){
   const [targetIdx,setTargetIdx]=useState(0);const [captured,setCaptured]=useState([]);const [hasGyro,setHasGyro]=useState(null);
   const [introReady,setIntroReady]=useState(false);
   const ballRef=useRef({x:50,y:50});const gyroRef=useRef({beta:0,gamma:0});const animRef=useRef(null);
+  const targetRef=useRef({x:50,y:50}); // smoothing target
   const areaRef=useRef(null);
   const target=GYRO_TARGETS[targetIdx];
 
@@ -522,9 +523,16 @@ function GyroScene({onComplete}){
         handler=e=>{if(e.gamma!==null&&e.beta!==null){gyroRef.current={beta:e.beta,gamma:e.gamma};if(!gotData&&mounted){gotData=true;setHasGyro(true);}}};
         window.addEventListener("deviceorientation",handler);
         const update=()=>{if(!mounted)return;const{beta,gamma}=gyroRef.current;
-          ballRef.current.x=Math.max(5,Math.min(95,ballRef.current.x+gamma*0.12));
-          ballRef.current.y=Math.max(5,Math.min(95,ballRef.current.y+(beta-30)*0.12));
-          setBallPos({...ballRef.current});animRef.current=requestAnimationFrame(update);};
+          // Map tilt to position (not velocity) — much more controllable
+          // gamma: -45 to 45 maps to 5-95, beta: 20-70 maps to 5-95
+          const rawX=50+gamma*1.0; // ±45deg tilt = full range
+          const rawY=50+(beta-45)*1.0; // holding at ~45deg = center
+          targetRef.current.x=Math.max(5,Math.min(95,rawX));
+          targetRef.current.y=Math.max(5,Math.min(95,rawY));
+          // Lerp smoothing — ball eases toward target
+          ballRef.current.x+=(targetRef.current.x-ballRef.current.x)*0.12;
+          ballRef.current.y+=(targetRef.current.y-ballRef.current.y)*0.12;
+          setBallPos({x:ballRef.current.x,y:ballRef.current.y});animRef.current=requestAnimationFrame(update);};
         animRef.current=requestAnimationFrame(update);
       } catch(e) { /* stay in touch fallback */ }
     })();
@@ -543,7 +551,7 @@ function GyroScene({onComplete}){
   },[hasGyro]);
 
   useEffect(()=>{if(phase!=="puzzle"||!target)return;const dx=ballPos.x-target.x;const dy=ballPos.y-target.y;
-    if(Math.sqrt(dx*dx+dy*dy)<10){sfx.waypoint();setCaptured(c=>[...c,targetIdx]);
+    if(Math.sqrt(dx*dx+dy*dy)<13){sfx.waypoint();setCaptured(c=>[...c,targetIdx]);
       if(targetIdx+1>=GYRO_TARGETS.length){sfx.success();setPhase("success");}else setTargetIdx(i=>i+1);}
   },[ballPos,target,targetIdx,phase]);
 
@@ -679,7 +687,7 @@ function BirthdayScene({heroImg,onReplay}){
         <br/><span style={{color:P.textDim,fontSize:14}}>March 1, 2026</span>
       </NBox>
     </div>
-    <button onClick={onReplay} style={{marginTop:20,zIndex:2,fontFamily:"'Teko',sans-serif",fontSize:16,letterSpacing:3,padding:"10px 24px",background:"transparent",color:P.textDim,border:`1px solid ${P.textDim}40`,borderRadius:6,cursor:"pointer",WebkitTapHighlightColor:"transparent",opacity:showMsg?1:0,transition:"opacity 1s ease 0.5s"}}>▶ REPLAY</button>
+    <button onClick={onReplay} style={{marginTop:24,zIndex:2,fontFamily:"'Teko',sans-serif",fontSize:18,letterSpacing:3,padding:"12px 32px",background:`${P.amber}20`,color:P.amber,border:`1px solid ${P.amber}50`,borderRadius:8,cursor:"pointer",WebkitTapHighlightColor:"transparent",opacity:showMsg?1:0,transition:"opacity 1s ease 0.5s"}}>▶ PLAY AGAIN</button>
   </div>;
 }
 

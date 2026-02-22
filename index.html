@@ -210,6 +210,12 @@ function PowerGauge({power}){
 function TypeWriter({lines,onComplete,speed=28}){
   const [li,setLi]=useState(0);const [ci,setCi]=useState(0);const [disp,setDisp]=useState([]);
   const ref=useRef(null);const done=useRef(false);
+  const skip=useCallback(()=>{
+    if(done.current)return;
+    const remaining=lines.filter(l=>!l.pause);
+    setDisp(remaining);setLi(lines.length);setCi(0);
+    done.current=true;onComplete&&setTimeout(onComplete,100);
+  },[lines,onComplete]);
   useEffect(()=>{
     if(li>=lines.length){if(!done.current){done.current=true;onComplete&&setTimeout(onComplete,500);}return;}
     const line=lines[li];
@@ -221,7 +227,7 @@ function TypeWriter({lines,onComplete,speed=28}){
   },[li,ci,lines,speed,onComplete]);
   useEffect(()=>{if(ref.current)ref.current.scrollTop=ref.current.scrollHeight;},[disp,ci]);
   const cur=li<lines.length?lines[li]:null;const typing=cur&&!cur.pause;
-  return <div ref={ref} style={{fontFamily:"'Special Elite',monospace",fontSize:17,lineHeight:1.7,maxHeight:"55vh",overflowY:"auto",padding:"0 2px"}}>
+  return <div ref={ref} onClick={skip} style={{fontFamily:"'Special Elite',monospace",fontSize:17,lineHeight:1.7,maxHeight:"55vh",overflowY:"auto",padding:"0 2px",cursor:"pointer",WebkitTapHighlightColor:"transparent"}}>
     {disp.map((l,i)=>l.pause?null:<div key={i} style={{color:l.color||P.text,marginBottom:4,...(l.bold?{fontWeight:700}:{})}}>{l.prefix&&<span style={{color:P.amber,marginRight:6}}>{l.prefix}</span>}{l.text}</div>)}
     {typing&&<div style={{color:cur.color||P.text,...(cur.bold?{fontWeight:700}:{})}}>{cur.prefix&&<span style={{color:P.amber,marginRight:6}}>{cur.prefix}</span>}{cur.text.slice(0,ci)}<span style={{color:P.amber,animation:"blink 0.7s step-end infinite"}}>▊</span></div>}
   </div>;
@@ -398,7 +404,7 @@ const SUIT_RANGES=[
   {suit:"C",sym:"♣",letters:"VWXYZ",color:P.suitBlack},
 ];
 const letterToCard=l=>{const i=l.charCodeAt(0)-64;if(i<=7)return{suit:"S",value:i};if(i<=14)return{suit:"H",value:i-7};if(i<=21)return{suit:"D",value:i-14};return{suit:"C",value:i-21};};
-const SECRET="SLEIGHT";const CIPHER_CARDS=SECRET.split("").map(letterToCard);
+const SECRET="CARIS";const CIPHER_CARDS=SECRET.split("").map(letterToCard);
 
 function DecodeScene({onComplete}){
   const [phase,setPhase]=useState("intro");const [ci,setCi]=useState(0);const [decoded,setDecoded]=useState([]);
@@ -492,80 +498,97 @@ function DecodeScene({onComplete}){
     </div>}
     {phase==="success"&&<div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:14,animation:"fadeIn 0.6s ease",zIndex:1}}>
       <div style={{fontFamily:"'Teko',sans-serif",fontSize:54,fontWeight:700,color:P.green,letterSpacing:8,textShadow:`0 0 24px ${P.greenGlow}`}}>{SECRET}</div>
-      <NBox style={{textAlign:"center",maxWidth:300}}><span style={{color:P.amber}}>The signal decodes to a word.</span><br/>Sleight — as in sleight of hand. Someone knows what you can do.</NBox>
+      <NBox style={{textAlign:"center",maxWidth:300}}><span style={{color:P.amber}}>The signal decodes to a name.</span><br/>Your name. Someone out here knows who you are.</NBox>
       <Indicator color={P.green} on label="SIGNAL DECODED"/>
       <TapGate onTap={onComplete}/>
     </div>}
   </div>;
 }
 
-// ─── GYRO (Tilt Nav) — with tap gates, fixed drag ──────
-const GYRO_TARGETS=[{x:25,y:25,label:"NAV-1"},{x:75,y:30,label:"NAV-2"},{x:30,y:70,label:"NAV-3"},{x:70,y:65,label:"NAV-4"}];
-function GyroScene({onComplete}){
-  const [phase,setPhase]=useState("intro");const [ballPos,setBallPos]=useState({x:50,y:50});
-  const [targetIdx,setTargetIdx]=useState(0);const [captured,setCaptured]=useState([]);
-  const [introReady,setIntroReady]=useState(false);const [dragging,setDragging]=useState(false);
-  const areaRef=useRef(null);
-  const target=GYRO_TARGETS[targetIdx];
+// ─── CONSTELLATION (Card Star Map) ──────────────────────
+const STAR_CARDS=[{suit:"H",value:3,x:25,y:22},{suit:"D",value:7,x:72,y:28},{suit:"S",value:1,x:28,y:68},{suit:"C",value:5,x:75,y:72}];
+const DECOY_CARDS=[{suit:"H",value:6},{suit:"S",value:7}];
+function NavScene({onComplete}){
+  const [phase,setPhase]=useState("intro");const [introReady,setIntroReady]=useState(false);
+  const [hand,setHand]=useState(()=>shuffle([...STAR_CARDS.map(c=>({suit:c.suit,value:c.value})),...DECOY_CARDS]));
+  const [selected,setSelected]=useState(null);const [placed,setPlaced]=useState(new Set());
+  const [wrongSlot,setWrongSlot]=useState(null);const [wrongCard,setWrongCard]=useState(null);
 
-  const getPos=(e)=>{
-    if(!areaRef.current)return null;
-    const rect=areaRef.current.getBoundingClientRect();
-    const cx=e.touches?e.touches[0].clientX:e.clientX;
-    const cy=e.touches?e.touches[0].clientY:e.clientY;
-    return{x:Math.max(5,Math.min(95,((cx-rect.left)/rect.width)*100)),y:Math.max(5,Math.min(95,((cy-rect.top)/rect.height)*100))};
+  useEffect(()=>{if(placed.size===STAR_CARDS.length){sfx.success();setTimeout(()=>setPhase("success"),600);}},[placed]);
+
+  const selectCard=(idx)=>{if(phase!=="puzzle")return;sfx.flip();setSelected(selected===idx?null:idx);};
+  const tapSlot=(si)=>{
+    if(phase!=="puzzle"||selected===null||placed.has(si))return;
+    const card=hand[selected];const target=STAR_CARDS[si];
+    if(card.suit===target.suit&&card.value===target.value){
+      sfx.match();const np=new Set(placed);np.add(si);setPlaced(np);
+      setHand(h=>h.filter((_,i)=>i!==selected));setSelected(null);
+    }else{
+      sfx.wrong();setWrongSlot(si);setWrongCard(selected);
+      setTimeout(()=>{setWrongSlot(null);setWrongCard(null);},500);
+    }
   };
-  const onDown=(e)=>{if(phase!=="puzzle")return;e.preventDefault();setDragging(true);const p=getPos(e);if(p)setBallPos(p);};
-  const onMove=(e)=>{if(!dragging||phase!=="puzzle")return;e.preventDefault();const p=getPos(e);if(p)setBallPos(p);};
-  const onUp=()=>setDragging(false);
-
-  useEffect(()=>{if(dragging){const u=()=>setDragging(false);window.addEventListener("mouseup",u);window.addEventListener("touchend",u);return()=>{window.removeEventListener("mouseup",u);window.removeEventListener("touchend",u);};}},[dragging]);
-
-  useEffect(()=>{if(phase!=="puzzle"||!target)return;const dx=ballPos.x-target.x;const dy=ballPos.y-target.y;
-    if(Math.sqrt(dx*dx+dy*dy)<13){sfx.waypoint();setCaptured(c=>[...c,targetIdx]);
-      if(targetIdx+1>=GYRO_TARGETS.length){sfx.success();setPhase("success");}else setTargetIdx(i=>i+1);}
-  },[ballPos,target,targetIdx,phase]);
 
   const introLines=useMemo(()=>[
     {text:"NAVIGATION — RECALIBRATING",color:P.amber,prefix:"►"},
-    {text:"The nav system needs manual alignment.",color:P.text},
-    {text:"Drag the signal to each waypoint to lock it in.",color:P.amber,prefix:"►",bold:true},
-    {text:"Lock all four to restore navigation.",color:P.text},
+    {text:"Star chart needs four key cards to lock coordinates.",color:P.text},
+    {text:"Select a card from your hand, then place it on the matching position.",color:P.amber,prefix:"►",bold:true},
+    {text:"Watch out — not every card in your hand belongs.",color:P.text},
   ],[]);
 
-  return <div style={{flex:1,display:"flex",flexDirection:"column",padding:16,position:"relative"}}><Particles count={10} color={`${P.amber}20`}/>
+  return <div style={{flex:1,display:"flex",flexDirection:"column",padding:16,position:"relative"}}><Particles count={12} color={`${P.amber}20`}/>
     {phase==="intro"&&<div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",zIndex:1}}>
       <TypeWriter lines={introLines} onComplete={()=>setIntroReady(true)} speed={22}/>
       {introReady&&<TapGate onTap={()=>setPhase("puzzle")} label="[ Tap to begin puzzle ]"/>}
     </div>}
     {phase==="puzzle"&&<div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,zIndex:1}}>
-      <div style={{display:"flex",alignItems:"center",gap:10}}><Indicator color={P.amber} on label="NAV"/><span style={{fontFamily:"'Teko',sans-serif",fontSize:17,color:P.amber,letterSpacing:2}}>{captured.length}/{GYRO_TARGETS.length} WAYPOINTS</span></div>
-      <div ref={areaRef}
-        onTouchStart={onDown} onTouchMove={onMove} onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp}
-        style={{
-          width:"100%",maxWidth:340,aspectRatio:"1/1",overflow:"hidden",position:"relative",
-          cursor:"crosshair",touchAction:"none",
-          background:`linear-gradient(180deg,${P.bgPanel} 0%,${P.bg}f0 100%)`,
-          border:`1px solid ${P.amber}25`,borderRadius:10,
-          boxShadow:`inset 0 1px 0 ${P.amber}10,0 4px 20px rgba(0,0,0,0.45)`,
-        }}>
-        {[25,50,75].map(p=><div key={`h${p}`} style={{position:"absolute",left:0,right:0,top:`${p}%`,height:1,background:`${P.amber}10`}}/>)}
-        {[25,50,75].map(p=><div key={`v${p}`} style={{position:"absolute",top:0,bottom:0,left:`${p}%`,width:1,background:`${P.amber}10`}}/>)}
-        {captured.map(ci=>{const t=GYRO_TARGETS[ci];return<div key={ci} style={{position:"absolute",left:`${t.x}%`,top:`${t.y}%`,transform:"translate(-50%,-50%)",width:20,height:20,borderRadius:"50%",border:`2px solid ${P.green}`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 12px ${P.greenGlow}`}}><div style={{width:6,height:6,borderRadius:"50%",background:P.green}}/></div>;})}
-        {target&&!captured.includes(targetIdx)&&<div style={{position:"absolute",left:`${target.x}%`,top:`${target.y}%`,transform:"translate(-50%,-50%)",animation:"targetPulse 1.5s ease-in-out infinite"}}>
-          <div style={{width:36,height:36,borderRadius:"50%",border:`2px solid ${P.amber}`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 0 16px ${P.amberGlow}`}}><div style={{width:8,height:8,borderRadius:"50%",background:P.amber}}/></div>
-          <div style={{position:"absolute",bottom:-18,left:"50%",transform:"translateX(-50%)",fontFamily:"'Share Tech Mono',monospace",fontSize:9,color:P.amber,letterSpacing:1,whiteSpace:"nowrap"}}>{target.label}</div>
-        </div>}
-        <div style={{position:"absolute",left:`${ballPos.x}%`,top:`${ballPos.y}%`,transform:"translate(-50%,-50%)",width:22,height:22,borderRadius:"50%",
-          background:`radial-gradient(circle at 40% 40%,${P.tealGlow},${P.teal})`,
-          boxShadow:`0 0 12px ${P.teal},0 0 24px ${P.tealGlow}${dragging?`,0 0 32px ${P.teal}`:""}`,
-          transition:dragging?"none":"left 0.15s ease, top 0.15s ease",
-        }}/>
-        <div style={{position:"absolute",left:`${ballPos.x}%`,top:`${ballPos.y}%`,transform:"translate(-50%,-50%)",width:22,height:22,borderRadius:"50%",background:P.teal,opacity:0.15,filter:"blur(8px)",transition:dragging?"none":"left 0.2s ease, top 0.2s ease"}}/>
+      <div style={{display:"flex",alignItems:"center",gap:10}}><Indicator color={P.amber} on label="NAV"/><span style={{fontFamily:"'Teko',sans-serif",fontSize:17,color:P.amber,letterSpacing:2}}>{placed.size}/{STAR_CARDS.length} LOCKED</span></div>
+      {/* Star map */}
+      <div style={{width:"100%",maxWidth:340,aspectRatio:"1/1",position:"relative",
+        background:`linear-gradient(180deg,${P.bgPanel} 0%,${P.bg}f0 100%)`,
+        border:`1px solid ${P.amber}25`,borderRadius:10,
+        boxShadow:`inset 0 1px 0 ${P.amber}10,0 4px 20px rgba(0,0,0,0.45)`}}>
+        {/* Grid lines */}
+        {[25,50,75].map(p=><div key={`h${p}`} style={{position:"absolute",left:0,right:0,top:`${p}%`,height:1,background:`${P.amber}08`}}/>)}
+        {[25,50,75].map(p=><div key={`v${p}`} style={{position:"absolute",top:0,bottom:0,left:`${p}%`,width:1,background:`${P.amber}08`}}/>)}
+        {/* Constellation lines connecting the slots */}
+        <svg style={{position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none"}}>
+          {[[0,1],[1,3],[3,2],[2,0],[0,3]].map(([a,b],i)=><line key={i} x1={`${STAR_CARDS[a].x}%`} y1={`${STAR_CARDS[a].y}%`} x2={`${STAR_CARDS[b].x}%`} y2={`${STAR_CARDS[b].y}%`} stroke={`${P.amber}15`} strokeWidth="1"/>)}
+        </svg>
+        {/* Background stars */}
+        {Array.from({length:20}).map((_,i)=><div key={`st${i}`} style={{position:"absolute",left:`${10+Math.random()*80}%`,top:`${10+Math.random()*80}%`,width:Math.random()>0.6?2:1,height:Math.random()>0.6?2:1,borderRadius:"50%",background:`${P.cream}40`,animation:`twinkle ${2+Math.random()*3}s ease-in-out ${Math.random()*3}s infinite`}}/>)}
+        {/* Card slots */}
+        {STAR_CARDS.map((sc,si)=>{
+          const isPlaced=placed.has(si);const isWrong=wrongSlot===si;
+          return <div key={si} onClick={()=>tapSlot(si)} style={{
+            position:"absolute",left:`${sc.x}%`,top:`${sc.y}%`,transform:"translate(-50%,-50%)",
+            cursor:selected!==null&&!isPlaced?"pointer":"default",
+            animation:isWrong?"headShake 0.4s ease":isPlaced?"none":"targetPulse 2s ease-in-out infinite",
+          }}>
+            {isPlaced?<GameCard suit={sc.suit} value={sc.value} matched small/>:
+            <div style={{width:50,height:72,borderRadius:7,border:`2px dashed ${P.amber}50`,
+              background:`${P.bgDeep}80`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,
+              boxShadow:`0 0 12px ${P.amberGlow}`,
+            }}>
+              <span style={{fontSize:18,color:SUIT_CLR[sc.suit],opacity:0.7}}>{SUIT_SYM[sc.suit]}</span>
+              <span style={{fontFamily:"'Teko',sans-serif",fontSize:16,color:`${P.cream}60`,fontWeight:700}}>{valDisplay(sc.value)}</span>
+            </div>}
+          </div>;
+        })}
       </div>
+      {/* Hand */}
+      <div style={{display:"flex",gap:6,justifyContent:"center",flexWrap:"wrap",padding:"4px 0"}}>
+        {hand.map((c,i)=><div key={`${c.suit}${c.value}`}
+          style={{animation:wrongCard===i?"headShake 0.4s ease":`staggerIn 0.3s ease ${i*0.06}s both`,
+            transition:"transform 0.2s ease",transform:selected===i?"translateY(-8px) scale(1.05)":"translateY(0)"}}>
+          <GameCard suit={c.suit} value={c.value} small selected={selected===i} glow={selected===i}
+            onClick={()=>selectCard(i)}/>
+        </div>)}
+      </div>
+      {selected!==null&&<div style={{fontFamily:"'Special Elite',monospace",fontSize:13,color:P.amber,textAlign:"center"}}>Now tap the matching position on the star chart</div>}
     </div>}
     {phase==="success"&&<div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16,animation:"fadeIn 0.5s ease",zIndex:1}}>
-      <Indicator color={P.green} on label="NAVIGATION ONLINE"/><NBox style={{textAlign:"center"}}>All waypoints locked. Navigation restored.</NBox>
+      <Indicator color={P.green} on label="NAVIGATION ONLINE"/><NBox style={{textAlign:"center"}}>All four coordinates locked. Star chart aligned. Navigation restored.</NBox>
       <TapGate onTap={onComplete}/>
     </div>}
   </div>;
@@ -639,12 +662,11 @@ const CONFETTI=Array.from({length:40}).map((_,i)=>({suit:ALL_SUITS[i%4],value:(i
 function BirthdayScene({heroImg,onReplay}){
   const [show,setShow]=useState(false);const [showMsg,setShowMsg]=useState(false);
   useEffect(()=>{sfx.stopMusic();setTimeout(()=>{setShow(true);sfx.birthday();},600);setTimeout(()=>setShowMsg(true),2800);},[]);
-  return <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",padding:"24px 24px 40px",position:"relative",overflow:"auto",WebkitOverflowScrolling:"touch"}}>
+  return <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"16px 24px 60px",position:"relative",overflow:"hidden"}}>
     <div style={{position:"absolute",inset:0,backgroundImage:`url(${heroImg})`,backgroundSize:"cover",backgroundPosition:"center 20%",filter:"brightness(0.18) saturate(0.5) blur(6px)"}}/>
     <div style={{position:"absolute",inset:0,background:`${P.bg}a0`}}/>
     {CONFETTI.map((c,i)=><div key={i} style={{position:"absolute",left:c.left,top:-120,animation:`floatDown ${c.dur}s linear ${c.delay}s infinite`,opacity:0,transform:`rotate(${c.rot}deg)`,pointerEvents:"none",zIndex:0}}><GameCard suit={c.suit} value={c.value} small={c.sm} style={{opacity:0.22}}/></div>)}
     {Array.from({length:30}).map((_,i)=><div key={`s${i}`} style={{position:"absolute",left:`${Math.random()*100}%`,top:`${Math.random()*100}%`,width:Math.random()>0.5?2:1,height:Math.random()>0.5?2:1,background:P.cream,borderRadius:"50%",animation:`twinkle ${1+Math.random()*2}s ease-in-out ${Math.random()*3}s infinite`,pointerEvents:"none"}}/>)}
-    <div style={{flex:"1 0 20px"}}/>
     <div style={{opacity:show?1:0,transform:show?"translateY(0)":"translateY(30px)",transition:"all 1.5s ease",textAlign:"center",zIndex:1}}>
       <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:P.amber,letterSpacing:5,marginBottom:12,opacity:0.7}}>✦ TRANSMISSION DECODED ✦</div>
       <h1 style={{fontFamily:"'Teko',sans-serif",fontSize:44,fontWeight:700,color:P.cream,margin:"0",letterSpacing:3,lineHeight:1.1}}>HAPPY BIRTHDAY</h1>
@@ -660,13 +682,13 @@ function BirthdayScene({heroImg,onReplay}){
         <br/><span style={{color:P.textDim,fontSize:14}}>March 1, 2026</span>
       </NBox>
     </div>
-    <button onClick={onReplay} style={{marginTop:24,zIndex:2,fontFamily:"'Teko',sans-serif",fontSize:18,letterSpacing:3,padding:"12px 32px",background:`${P.amber}20`,color:P.amber,border:`1px solid ${P.amber}50`,borderRadius:8,cursor:"pointer",WebkitTapHighlightColor:"transparent",opacity:showMsg?1:0,transition:"opacity 1s ease 0.5s"}}>▶ PLAY AGAIN</button>
+    <button onClick={onReplay} style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:10,fontFamily:"'Teko',sans-serif",fontSize:18,letterSpacing:3,padding:"12px 32px",background:`${P.amber}20`,color:P.amber,border:`1px solid ${P.amber}50`,borderRadius:8,cursor:"pointer",WebkitTapHighlightColor:"transparent",opacity:showMsg?1:0,transition:"opacity 1s ease 0.5s"}}>▶ PLAY AGAIN</button>
   </div>;
 }
 
 // ─── MAIN ───────────────────────────────────────────────
 const POWER_MAP={[SCENES.RADIO]:3,[SCENES.HATCH]:5,[SCENES.DECODE]:7,[SCENES.GYRO]:10,[SCENES.LAUNCH]:11};
-const SCENE_LABELS={[SCENES.CRASH]:{l:"SYSTEM BOOT",s:"INITIALIZING"},[SCENES.RADIO]:{l:"COMMS REPAIR",s:"PUZZLE 1 OF 4"},[SCENES.HATCH]:{l:"HATCH OVERRIDE",s:"PUZZLE 2 OF 4"},[SCENES.DECODE]:{l:"SIGNAL DECODE",s:"PUZZLE 3 OF 4"},[SCENES.GYRO]:{l:"NAV CALIBRATION",s:"PUZZLE 4 OF 4"},[SCENES.LAUNCH]:{l:"LAUNCH PREP",s:"FINAL SEQUENCE"}};
+const SCENE_LABELS={[SCENES.CRASH]:{l:"SYSTEM BOOT",s:"INITIALIZING"},[SCENES.RADIO]:{l:"COMMS REPAIR",s:"PUZZLE 1 OF 4"},[SCENES.HATCH]:{l:"HATCH OVERRIDE",s:"PUZZLE 2 OF 4"},[SCENES.DECODE]:{l:"SIGNAL DECODE",s:"PUZZLE 3 OF 4"},[SCENES.GYRO]:{l:"STAR CHART",s:"PUZZLE 4 OF 4"},[SCENES.LAUNCH]:{l:"LAUNCH PREP",s:"FINAL SEQUENCE"}};
 const PUZZLE_SCENES=[SCENES.RADIO,SCENES.HATCH,SCENES.DECODE,SCENES.GYRO,SCENES.LAUNCH];
 
 function App(){
@@ -686,7 +708,7 @@ function App(){
       {scene===SCENES.RADIO&&<RadioScene onComplete={advance}/>}
       {scene===SCENES.HATCH&&<HatchScene onComplete={advance}/>}
       {scene===SCENES.DECODE&&<DecodeScene onComplete={advance}/>}
-      {scene===SCENES.GYRO&&<GyroScene onComplete={advance}/>}
+      {scene===SCENES.GYRO&&<NavScene onComplete={advance}/>}
       {scene===SCENES.LAUNCH&&<LaunchScene onComplete={advance}/>}
       {scene===SCENES.BIRTHDAY&&<BirthdayScene heroImg={HERO_IMG} onReplay={handleReplay}/>}
     </div>

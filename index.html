@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Crash Landing on Planet Eleven</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
-<style>html,body,#root{margin:0;padding:0;height:100%;width:100%;overflow:hidden;background:#0e1520;}</style>
+<style>html,body,#root{margin:0;padding:0;height:100%;width:100%;background:#0e1520;}</style>
 </head>
 <body>
 <div id="root"></div>
@@ -691,11 +691,12 @@ const CONFETTI=Array.from({length:40}).map((_,i)=>({suit:ALL_SUITS[i%4],value:(i
 function BirthdayScene({heroImg,onReplay}){
   const [show,setShow]=useState(false);const [showMsg,setShowMsg]=useState(false);
   useEffect(()=>{sfx.stopMusic();setTimeout(()=>{setShow(true);sfx.birthday();},600);setTimeout(()=>setShowMsg(true),2800);},[]);
-  return <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"16px 24px 60px",position:"relative",overflow:"hidden"}}>
-    <div style={{position:"absolute",inset:0,backgroundImage:`url(${heroImg})`,backgroundSize:"cover",backgroundPosition:"center 20%",filter:"brightness(0.18) saturate(0.5) blur(6px)"}}/>
-    <div style={{position:"absolute",inset:0,background:`${P.bg}a0`}}/>
+  return <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",padding:"24px 24px 40px",position:"relative",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+    <div style={{position:"fixed",inset:0,backgroundImage:`url(${heroImg})`,backgroundSize:"cover",backgroundPosition:"center 20%",filter:"brightness(0.18) saturate(0.5) blur(6px)",zIndex:0}}/>
+    <div style={{position:"fixed",inset:0,background:`${P.bg}a0`,zIndex:0}}/>
     {CONFETTI.map((c,i)=><div key={i} style={{position:"absolute",left:c.left,top:-120,animation:`floatDown ${c.dur}s linear ${c.delay}s infinite`,opacity:0,transform:`rotate(${c.rot}deg)`,pointerEvents:"none",zIndex:0}}><GameCard suit={c.suit} value={c.value} small={c.sm} style={{opacity:0.22}}/></div>)}
     {Array.from({length:30}).map((_,i)=><div key={`s${i}`} style={{position:"absolute",left:`${Math.random()*100}%`,top:`${Math.random()*100}%`,width:Math.random()>0.5?2:1,height:Math.random()>0.5?2:1,background:P.cream,borderRadius:"50%",animation:`twinkle ${1+Math.random()*2}s ease-in-out ${Math.random()*3}s infinite`,pointerEvents:"none"}}/>)}
+    <div style={{flexShrink:0,height:40}}/>
     <div style={{opacity:show?1:0,transform:show?"translateY(0)":"translateY(30px)",transition:"all 1.5s ease",textAlign:"center",zIndex:1}}>
       <div style={{fontFamily:"'Share Tech Mono',monospace",fontSize:12,color:P.amber,letterSpacing:5,marginBottom:12,opacity:0.7}}>✦ TRANSMISSION DECODED ✦</div>
       <h1 style={{fontFamily:"'Teko',sans-serif",fontSize:44,fontWeight:700,color:P.cream,margin:"0",letterSpacing:3,lineHeight:1.1}}>HAPPY BIRTHDAY</h1>
@@ -711,7 +712,7 @@ function BirthdayScene({heroImg,onReplay}){
         <br/><span style={{color:P.textDim,fontSize:14}}>March 1, 2026</span>
       </NBox>
     </div>
-    <button onClick={onReplay} style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:10,fontFamily:"'Teko',sans-serif",fontSize:18,letterSpacing:3,padding:"12px 32px",background:`${P.amber}20`,color:P.amber,border:`1px solid ${P.amber}50`,borderRadius:8,cursor:"pointer",WebkitTapHighlightColor:"transparent",opacity:showMsg?1:0,transition:"opacity 1s ease 0.5s"}}>▶ PLAY AGAIN</button>
+    <button onClick={onReplay} style={{flexShrink:0,marginTop:24,marginBottom:20,zIndex:2,fontFamily:"'Teko',sans-serif",fontSize:18,letterSpacing:3,padding:"12px 32px",background:`${P.amber}20`,color:P.amber,border:`1px solid ${P.amber}50`,borderRadius:8,cursor:"pointer",WebkitTapHighlightColor:"transparent",opacity:showMsg?1:0,transition:"opacity 1s ease 0.5s"}}>▶ PLAY AGAIN</button>
   </div>;
 }
 
@@ -727,7 +728,8 @@ function App(){
   const handleReplay=useCallback(()=>{setScene(SCENES.TITLE);setPower(0);setGameKey(k=>k+1);sfx.stopMusic();},[]);
   const showGauge=![SCENES.TITLE,SCENES.BIRTHDAY].includes(scene);const curPuzzle=PUZZLE_SCENES.indexOf(scene);
 
-  return <div key={gameKey} style={{minHeight:"100vh",minHeight:"100dvh",background:P.bg,color:P.text,display:"flex",flexDirection:"column",position:"relative",overflow:"hidden",touchAction:"manipulation",maxWidth:480,margin:"0 auto"}}>
+  const isBday=scene===SCENES.BIRTHDAY;
+  return <div key={gameKey} style={{minHeight:"100vh",minHeight:"100dvh",background:P.bg,color:P.text,display:"flex",flexDirection:"column",position:"relative",overflow:isBday?"visible":"hidden",touchAction:"manipulation",maxWidth:480,margin:"0 auto"}}>
     <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:50,opacity:0.03,mixBlendMode:"overlay",backgroundImage:`url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`}}/>
     {showGauge&&<div><PowerGauge power={power}/>{curPuzzle>=0&&<div style={{display:"flex",justifyContent:"center",gap:6,paddingBottom:6}}>{PUZZLE_SCENES.map((_,i)=><div key={i} style={{width:i<=curPuzzle?18:6,height:3,borderRadius:2,background:i<=curPuzzle?P.amber:`${P.amber}20`,transition:"all 0.5s ease"}}/>)}</div>}</div>}
     {transData&&<TransitionScreen label={transData.l} sublabel={transData.s} onDone={handleTransDone}/>}
@@ -743,7 +745,7 @@ function App(){
     </div>
     <style>{`
       @import url('https://fonts.googleapis.com/css2?family=Teko:wght@400;500;600;700&family=Special+Elite&family=Share+Tech+Mono&display=swap');
-      *{box-sizing:border-box;margin:0;padding:0;}body{background:${P.bg};overflow:hidden;}
+      *{box-sizing:border-box;margin:0;padding:0;}body{background:${P.bg};}
       @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
       @keyframes fadeIn{from{opacity:0}to{opacity:1}}
       @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
